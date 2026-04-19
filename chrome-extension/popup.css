@@ -146,6 +146,17 @@ header {
   text-align: center;
 }
 
+/* Danger banner */
+.danger-banner {
+  background: var(--danger);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 10px 16px;
+  text-align: center;
+  line-height: 1.4;
+}
+
 /* Tab bar */
 .tab-bar {
   display: flex;
