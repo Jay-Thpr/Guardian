@@ -1,591 +1,328 @@
-PRD: Senior-Safe Browser Copilot
-1. Overview
+# PRD: SafeStep Browser Copilot Test Harness
 
-Working name: SafeStep
-Product type: Chrome extension + lightweight web backend
-Primary users: Older adults with early cognitive decline or memory/executive-function difficulties
-Secondary users: Family caregivers
+## 1. Product Summary
 
-SafeStep is a persistent browser copilot that stays available while an older adult browses the web normally in Chrome. It helps them complete important healthcare-related tasks, avoid online scams, and continue multi-step tasks when they get confused or forget what they were doing.
+**Working name:** SafeStep  
+**Current form factor:** Next.js web app plus Python browser-agent backend  
+**Primary purpose today:** Technical validation surface for a senior-support browsing copilot  
+**Intended future form factor:** Chrome extension with lightweight backend services
 
-The product is designed for a hackathon MVP, so it focuses on three tightly scoped workflows:
+SafeStep is a senior-support copilot for high-stakes online tasks, especially healthcare-related browsing. The current app is not the final product experience. It is a test harness used to validate the backend agent, copilot reasoning, memory, scam detection, and appointment-aware guidance before moving to an extension-based UX.
 
-Appointment planning and portal help
-Scam vulnerability protection
-Remembering and executing tasks
+Today, the web app does four practical things:
 
-The assistant appears as a floating overlay in Chrome, can understand the current page, can use Google Calendar context, and can provide calm, senior-friendly step-by-step guidance. It may also use Browser Use API for selected guided flows.
+- starts a browser-use agent in a real browser session through a FastAPI backend
+- streams step-by-step agent events back into the UI
+- provides copilot reasoning for guidance and scam checking
+- uses task memory and appointment context to make the guidance more specific
 
-2. Problem
+## 2. Problem
 
-Older adults with early cognitive decline often struggle with online tasks that younger users take for granted. This is especially true when tasks are:
+Older adults with mild cognitive decline, memory issues, or executive-function difficulty can often browse independently, but they struggle when tasks become:
 
-high stakes
-multi-step
-confusingly worded
-hidden inside bad portal UX
-mixed with scams, spoofed links, or manipulative messages
+- multi-step
+- high stakes
+- buried in bad portal UX
+- mixed with scam patterns
+- easy to lose track of midway through
 
-Common pain points include:
+Typical failures include:
 
-forgetting appointments or how to prepare for them
-struggling to log into hospital or pharmacy portals
-not knowing whether a website, email, or payment request is legitimate
-forgetting what step they were on in the middle of a task
-repeatedly restarting tasks after confusion
-difficulty executing tasks even when they conceptually know what they need to do
+- forgetting what they were trying to do
+- not knowing what to click next
+- getting stuck in login, refill, or appointment workflows
+- being unable to tell whether a healthcare page is legitimate
+- restarting the same task repeatedly
 
-Existing tools are often too general, too cluttered, or not built for seniors in the middle of real browsing activity.
+The goal of SafeStep is to support independence without silently taking control.
 
-3. Vision
+## 3. What The Codebase Actually Is
 
-Create an always-available, senior-friendly browser assistant that helps older adults safely navigate important online tasks without forcing them into a separate app or requiring them to learn a new workflow.
+The current repository implements a working prototype with these parts:
 
-The product should feel like:
+### Frontend
 
-a calm guide
-a continuity layer
-a safety checkpoint
-a step-by-step helper
+- Next.js app router application
+- landing page is a **browser-agent test harness**, not a real embedded browser
+- task runner UI is built around [src/components/BrowserTaskArea.tsx](/Users/jt/Desktop/Claude/src/components/BrowserTaskArea.tsx)
+- the main page is [src/app/page.tsx](/Users/jt/Desktop/Claude/src/app/page.tsx)
 
-It should support autonomy, not replace it.
+### Copilot backend inside Next.js
 
-4. Goals
-Primary goals
-Help users safely navigate healthcare-related online tasks
-Reduce scam risk during real browsing sessions
-Help users remember and continue tasks without restarting from scratch
-Make assistance available directly in Chrome, not in a separate nested browser
-Secondary goals
-Use calendar context to make appointment-related help more useful
-Demonstrate persistent memory in a clear, non-creepy way
-Show a compelling ethical AI story for hackathon judging
-5. Non-Goals
-
-For MVP, SafeStep will not:
-
-provide medical advice or diagnosis
-autonomously submit sensitive forms without confirmation
-execute financial transactions on behalf of the user
-monitor all browsing silently in the background without user invocation
-support every possible website reliably
-be a full caregiver management platform
-be a native desktop assistant outside Chrome
-6. Target Users
-Primary user
-
-Older adult with mild dementia, early cognitive decline, or task-execution difficulty who still browses the web independently but benefits from help.
-
-Example traits
-can use Chrome but gets confused by complex websites
-may forget what they were trying to do
-may be vulnerable to urgency-based scams
-benefits from large text, simple language, repetition, and reassurance
-Secondary user
-
-Caregiver or family member who wants the user to stay independent but safer.
-
-For MVP, caregiver functionality is limited.
-
-7. Core Use Cases
-A. Appointment planning
-
-The user needs help with healthcare-related digital tasks, such as:
-
-logging into a hospital portal
-finding appointment details
-understanding what the appointment is for
-reading instructions
-accessing telehealth info
-refilling or purchasing medication online
-B. Scam vulnerability
-
-The user encounters:
-
-suspicious emails
-fake medical or pharmacy requests
-spoofed billing/payment pages
-fake Medicare or insurance notices
-urgency-based scam websites
-suspicious texts or browser popups
-
-They need an easy way to ask:
-“Is this safe?”
-
-C. Remembering / executing tasks
+- guidance orchestration in [src/lib/orchestrator.ts](/Users/jt/Desktop/Claude/src/lib/orchestrator.ts)
+- scam-check endpoint in [src/app/api/scam-check/route.ts](/Users/jt/Desktop/Claude/src/app/api/scam-check/route.ts)
+- next-step guidance endpoint in [src/app/api/next-step/route.ts](/Users/jt/Desktop/Claude/src/app/api/next-step/route.ts)
+- memory endpoint in [src/app/api/memory/route.ts](/Users/jt/Desktop/Claude/src/app/api/memory/route.ts)
+- appointments endpoint in [src/app/api/appointments/route.ts](/Users/jt/Desktop/Claude/src/app/api/appointments/route.ts)
 
-The user:
-
-forgets what they were doing
-loses track of steps
-gets stuck in multi-step processes
-needs one-step-at-a-time continuation
-
-They need help with:
-“What do I do next?”
-and
-“What was I trying to do?”
-
-8. Product Concept
-
-SafeStep is a Chrome extension that injects a floating senior-friendly assistant into webpages. The user can continue browsing in normal Chrome while the assistant remains accessible.
-
-The assistant can:
-
-inspect the current page context
-explain what the page is
-identify likely next steps
-flag scam indicators
-use Google Calendar context for appointment-related flows
-remember the current task and last known step
-optionally use Browser Use API for guided site interaction on supported demo flows
-9. User Experience Principles
+### Browser agent backend
 
-The UI and behavior should be explicitly senior-friendly.
+- FastAPI service in [backend/main.py](/Users/jt/Desktop/Claude/backend/main.py)
+- browser-use agent implementation in [backend/agent.py](/Users/jt/Desktop/Claude/backend/agent.py)
+- SSE event streaming to the frontend
 
-UX principles
-one primary action at a time
-very large readable text
-high contrast
-calm, plain language
-short sentences
-repeatable instructions
-minimal clutter
-no jargon
-explicit confirmation before sensitive actions
-visible reassurance and progress
-Behavioral principles
-never pretend certainty when uncertain
-clearly distinguish “safe,” “uncertain,” and “risky”
-slow down risky actions
-prioritize guidance over autonomy for dangerous moments
-preserve user dignity
-do not scold the user
-10. Key Features
-10.1 Persistent assistant overlay
+### Context and persistence
 
-A floating assistant bubble appears on webpages. Clicking it expands a side panel or overlay.
+- task memory in [src/lib/memory-store.ts](/Users/jt/Desktop/Claude/src/lib/memory-store.ts)
+- scam-check logging in [src/lib/scam-store.ts](/Users/jt/Desktop/Claude/src/lib/scam-store.ts)
+- calendar integration in [src/lib/google-calendar.ts](/Users/jt/Desktop/Claude/src/lib/google-calendar.ts)
+- user context loading in [src/lib/user-context.ts](/Users/jt/Desktop/Claude/src/lib/user-context.ts)
 
-Core actions in the overlay
-Is this safe?
-What do I do next?
-Appointments
-Repeat that
-I’m confused
+## 4. Product Positioning
 
-For MVP, these can be button-first with optional text input.
+This app should be treated as a **validation rig**, not as the final consumer product.
 
-10.2 Page understanding
+It is currently best used to validate:
 
-The extension reads lightweight page context, such as:
+- whether the browser agent can complete tasks
+- whether streamed step events are understandable
+- whether guidance output is calm and useful
+- whether scam checks are directionally correct
+- whether appointment and memory context improve assistance
 
-page title
-URL/domain
-visible text
-form labels
-button labels
-major headings
+It is not currently the right place to optimize:
 
-This context is sent to the backend for interpretation.
-
-The user can ask:
-
-“What is this page?”
-“What is it asking me to do?”
-“What should I click next?”
-10.3 Appointment helper
-
-Google Calendar integration provides context for upcoming appointments.
-
-The assistant can:
-
-show the user’s next appointment
-explain when it is
-describe likely prep context if stored
-connect current browsing behavior to appointment tasks
-help navigate portals relevant to that appointment
-help with pharmacy/refill workflows
-Example
-
-“You have a doctor appointment tomorrow at 2 PM. This page looks like your hospital portal. The next step is to sign in to view the appointment details.”
-
-10.4 Scam checker
-
-The assistant evaluates whether the current site, page, or message looks suspicious.
-
-Signals it can consider
-suspicious or mismatched domains
-urgency language
-pressure to act immediately
-requests for passwords, payment, SSN, or gift cards
-fake provider language
-mismatched branding
-suspicious billing/refill prompts
-spoofed healthcare, insurance, or banking patterns
-Output style
-
-The assistant should return a simple classification:
-
-Looks safe
-Not sure
-Looks risky
-
-It should also explain why in plain language.
-
-Example
-
-“This page looks risky because the web address does not match the hospital’s normal website and it is asking for urgent payment.”
-
-10.5 Task continuation memory
-
-The backend stores lightweight persistent task memory.
-
-Memory examples
-current task: “log into hospital portal”
-last step: “enter username”
-page intent: “pharmacy refill flow”
-recent confusion: “user asked for next step twice”
-appointment tie-in: “refill medication before tomorrow appointment”
-
-The user can ask:
-
-“What was I doing?”
-“What comes next?”
-“Can you explain again?”
-
-The assistant uses stored task state to continue rather than restarting the whole explanation.
-
-10.6 Browser Use integration
-
-Browser Use API is used selectively for guided actions on supported flows.
-
-Intended use
-inspect supported healthcare/pharmacy pages
-identify next-step actions
-optionally navigate within a constrained demo flow
-support task guidance with real page interaction
-MVP constraint
-
-Do not try to support arbitrary full-site automation. Use Browser Use in one or two polished demo flows only.
-
-11. User Stories
-Appointment planning
-As an older adult, I want help understanding my hospital portal so I can find my appointment details.
-As an older adult, I want the assistant to know my upcoming appointments so it can guide me in context.
-As an older adult, I want help refilling or ordering medication so I do not get lost on the website.
-Scam protection
-As an older adult, I want to check whether a page or request is suspicious before I enter personal information.
-As an older adult, I want scam explanations in plain language so I understand why something is unsafe.
-Task continuation
-As an older adult, I want the assistant to remember what I was trying to do so I do not have to start over.
-As an older adult, I want one-step-at-a-time instructions so I can complete tasks without getting overwhelmed.
-12. MVP Scope
-
-For the hackathon MVP, build only what is necessary to demonstrate the product clearly.
-
-In scope
-Chrome extension with floating assistant overlay
-page context extraction
-backend API
-Google Calendar read integration
-task memory for current and recent steps
-scam analysis for current page / pasted text
-“What do I do next?” guidance
-1 supported healthcare portal or pharmacy demo flow
-Browser Use API integration for that demo flow
-Out of scope
-account management for many users
-full caregiver dashboard
-broad cross-site automation
-speech input/output unless it is easy
-polished multi-user production auth
-advanced long-term memory graph
-publishing to Chrome Web Store
-13. Functional Requirements
-13.1 Extension overlay
-The system must inject a visible floating assistant into supported webpages.
-The overlay must be openable and closable by the user.
-The overlay must expose at least 3 primary actions:
-Is this safe?
-What do I do next?
-Appointments
-13.2 Page context capture
-The system must capture current page URL, title, and visible page text.
-The system must capture likely actionable UI elements such as buttons and form labels.
-The system must send page context to the backend on demand.
-13.3 Scam analysis
-The system must analyze the current page or pasted content for scam risk.
-The system must return a plain-language classification and short explanation.
-The system must highlight risky signals without claiming certainty when uncertain.
-13.4 Task guidance
-The system must provide a likely next step for the current page/task.
-The system must present instructions in short, clear language.
-The system must support follow-up actions like “repeat” or “explain again.”
-13.5 Appointment context
-The system must connect to Google Calendar.
-The system must fetch upcoming appointments for the user.
-The system must display the next appointment in the assistant.
-The system should use upcoming appointment context when interpreting relevant portal activity.
-13.6 Task memory
-The system must store the user’s current task and most recent step.
-The system must retrieve this memory on follow-up queries.
-The system must support “What was I doing?” type prompts.
-13.7 Browser Use integration
-The system must call Browser Use API for a supported demo workflow.
-The system should use Browser Use results to improve step-by-step task guidance.
-The system must not autonomously complete sensitive actions without clear user confirmation.
-14. Non-Functional Requirements
-Accessibility
-text should be large and readable
-buttons should be easy to click
-interface should be uncluttered
-color contrast should be strong
-Performance
-assistant response time should feel fast enough for live browsing
-scam analysis and next-step guidance should ideally return within a few seconds
-Reliability
-if page parsing fails, the assistant should admit uncertainty and fall back gracefully
-extension should not break webpage functionality
-Privacy
-only page context needed for the task should be sent to the backend
-sensitive actions should require explicit user initiation
-no silent always-on surveillance framing
-15. Technical Architecture
-15.1 Frontend
-Chrome extension
-
-Main parts:
-
-manifest.json
-content script for injected overlay UI
-background script for extension state and backend messaging
-optional popup/settings page
-Responsibilities
-show assistant UI
-collect page context
-send requests to backend
-render assistant responses
-preserve lightweight session state
-15.2 Backend
-
-Could be FastAPI or Node/TypeScript.
-
-Responsibilities
-receive page context
-orchestrate LLM calls
-manage task memory
-integrate with Google Calendar
-integrate with Browser Use API
-return scam assessments and next-step guidance
-15.3 AI layer
-
-Claude is used for:
-
-page explanation
-next-step guidance
-scam reasoning
-senior-friendly language transformation
-task continuation based on memory
-15.4 Google Calendar integration
-
-Use Google Calendar API for:
-
-retrieving upcoming appointments
-attaching appointment context to task flows
-powering the Appointments panel
-15.5 Browser Use integration
-
-Use Browser Use API for:
-
-structured browsing support in selected workflows
-identifying next actions on demo pages
-controlled navigation assistance
-15.6 Data storage
-
-Use a lightweight backend store such as:
-
-Postgres
-Supabase
-or even simple temporary session storage for hackathon scope
-Stored entities
-user profile
-upcoming appointments
-current task
-last step
-recent warnings
-recent assistant interactions
-16. Data Model
-16.1 User
-user_id
-name
-timezone
-calendar_connected
-16.2 Appointment
-appointment_id
-title
-start_time
-source
-prep_notes
-portal_link
-16.3 TaskMemory
-task_id
-user_id
-task_type
-task_goal
-current_step
-last_page_url
-status
-updated_at
-16.4 ScamCheck
-check_id
-user_id
-url
-classification
-explanation
-risk_signals
-created_at
-17. Primary Demo Flow
-Demo scenario
-
-An older adult has an upcoming medical appointment and is trying to manage related online tasks.
-
-Step 1
-
-The user opens a hospital portal or pharmacy-related webpage in normal Chrome.
-
-Step 2
-
-The extension overlay is visible. The user opens it.
-
-Step 3
-
-The assistant shows:
-
-next appointment from Google Calendar
-a short context message tying the page to that appointment
-
-Example:
-“You have a cardiology appointment tomorrow at 2 PM. This page looks like your hospital portal.”
-
-Step 4
-
-The user asks:
-“What do I do next?”
-
-The assistant uses page context and possibly Browser Use to say:
-“Next, click Sign In. After that, enter your username.”
-
-Step 5
-
-The user navigates to a suspicious billing/refill/payment page or email.
-
-Step 6
-
-The user clicks:
-“Is this safe?”
-
-The assistant evaluates the page and responds:
-“This looks risky because the website address does not match the hospital’s usual domain and it is asking for urgent payment.”
-
-Step 7
-
-The user asks:
-“What was I doing again?”
-
-The assistant retrieves memory:
-“You were trying to check your appointment details for tomorrow and refill your medicine.”
-
-This demo shows all three pillars in one story.
-
-18. Success Metrics
-
-For hackathon MVP, success is qualitative more than quantitative.
-
-Product success signals
-demo clearly shows the assistant staying available during normal browsing
-scam check feels useful and believable
-task continuation feels memory-aware
-appointment context adds real value
-UX feels senior-friendly, not like a normal dev tool
-Hackathon success signals
-judges immediately understand the problem
-ethical framing is strong
-Browser Use integration feels real, not forced
-Google Calendar integration is meaningfully connected to the workflow
-scope looks focused and polished
-19. Risks
-Technical risks
-Chrome extension integration takes longer than expected
-page extraction is messy on real sites
-Browser Use orchestration becomes a time sink
-auth for Google Calendar slows development
-Product risks
-trying to solve dementia too broadly
-appearing paternalistic or surveillance-heavy
-scam detection sounding overconfident
-UI not feeling truly senior-friendly
-too much scope for 6 hours
-20. Mitigations
-use only 1–2 polished demo sites
-keep the extension UI extremely simple
-focus on guidance, not autonomous action
-use mock or demo calendar data if auth blocks progress
-hardcode a small number of clear flows if needed
-keep memory narrow: current task + last step + recent context
-21. Ethical Considerations
-
-This product operates in a sensitive domain. The MVP should explicitly embody these principles:
-
-Autonomy
-
-The assistant should support user choice, not take over.
-
-Transparency
-
-The assistant should explain why it thinks something is risky or what the next step is.
-
-Uncertainty
-
-The assistant must admit when it is unsure.
-
-Safety
-
-Sensitive actions should require user confirmation.
-
-Dignity
-
-The product should not infantilize the user.
-
-Minimalism
-
-Only the minimum necessary data should be processed.
-
-A strong hackathon framing is:
-SafeStep helps older adults stay independent online while adding clarity, continuity, and protection in moments where confusion can become dangerous.
-
-22. MVP Build Plan
-Phase 1: Extension shell
-create extension
-inject floating assistant
-display basic panel with action buttons
-Phase 2: Backend intelligence
-build API endpoint for page analysis
-return “what is this page,” “what next,” and “is this safe” outputs
-Phase 3: Calendar context
-connect Google Calendar or mock upcoming appointment data
-show next appointment in panel
-Phase 4: Task memory
-store current task and last step
-support “What was I doing?”
-Phase 5: Browser Use demo flow
-implement one supported hospital/pharmacy flow
-use Browser Use to enrich next-step guidance
-23. Open Questions
-Should the assistant be text-only for MVP, or include voice later?
-Should the scam checker support pasted email text and screenshots, or only current page?
-Should caregiver features be omitted entirely for MVP?
-Which demo site is safest and easiest to support?
-Should Browser Use actively click, or only inspect and recommend?
-24. Final Product Statement
-
-SafeStep is a senior-friendly Chrome copilot that helps older adults safely navigate healthcare websites, avoid online scams, and continue important tasks without losing their place. By combining in-context page understanding, Google Calendar appointment awareness, lightweight persistent memory, and guided browser assistance, it supports independence without sacrificing safety.
+- a fake embedded browser experience
+- a polished end-user browsing shell
+- full autonomous browsing on arbitrary sites
+
+## 5. Core Product Capabilities
+
+### A. Guided browsing support
+
+The system should help users continue a task without restarting from scratch.
+
+Current implementation status:
+
+- partially implemented
+- browser agent can be launched
+- step events stream into the UI
+- copilot can answer next-step questions
+
+### B. Scam risk assistance
+
+The system should let the user ask whether the current page is safe.
+
+Current implementation status:
+
+- implemented at prototype level
+- URL and page content are evaluated
+- results are classified into safe, not sure, or risky
+- suspicious signals can be logged
+
+### C. Appointment-aware support
+
+The system should make guidance more relevant when the browsing task is tied to a healthcare appointment.
+
+Current implementation status:
+
+- implemented at prototype level
+- Google Calendar context can be loaded
+- next appointment data can shape guidance
+
+### D. Task continuation memory
+
+The system should help a user recover context after confusion.
+
+Current implementation status:
+
+- implemented at prototype level
+- task memory is stored and returned through API routes
+
+## 6. Target User
+
+### Primary user
+
+An older adult who still uses the web independently but needs help with:
+
+- healthcare portals
+- pharmacy/refill flows
+- appointment prep
+- remembering what they were doing
+- recognizing risky pages
+
+### Secondary user
+
+A family member or caregiver who may want the user to stay independent while still having a path to escalation when needed.
+
+## 7. UX Principles
+
+Even in prototype form, SafeStep should follow these constraints:
+
+- one primary action at a time
+- plain language
+- no fake certainty
+- no hidden autonomy
+- explicit user confirmation before sensitive actions
+- preserve dignity and avoid patronizing tone
+
+## 8. Non-Goals
+
+For the current product stage, SafeStep is not:
+
+- a replacement browser
+- a general call-center bot
+- a medical advice system
+- an autonomous form-submission engine
+- a financial transaction agent
+- a silent surveillance layer
+
+## 9. Twilio Integration Direction
+
+### Objective
+
+Add outbound calling as an escalation path when text guidance is not sufficient.
+
+Twilio should be used to support a narrow and defensible workflow:
+
+- the user explicitly asks for help calling a provider
+- or the app offers a call during a moment of confusion or risk and the user explicitly approves it
+
+This should be implemented as **provider-support calling**, not as unrestricted autonomous calling.
+
+### Best initial use case
+
+The strongest first use case is:
+
+**Call a healthcare provider office on the user’s behalf for low-risk administrative tasks.**
+
+Examples:
+
+- confirm appointment details
+- ask for office hours
+- ask what portal or phone number should be used
+- check whether a refill request should go through the portal or by phone
+- ask what documents or insurance cards to bring
+- ask whether telehealth instructions were sent
+
+### Why this fits the current app
+
+The codebase already has the right context sources:
+
+- appointment details
+- task memory
+- browsing context
+- scam-risk context
+- user profile and support preferences
+
+That means a phone call can be contextual rather than generic.
+
+### Twilio product requirements
+
+The Twilio integration must:
+
+- require explicit user approval before placing a call
+- disclose that the caller is an AI assistant calling on behalf of the user
+- keep the supported tasks narrow and administrative
+- log call state and outcomes
+- allow immediate cancellation
+- avoid sharing more personal information than necessary
+
+### Twilio architecture requirements
+
+The system should add:
+
+- a `POST /api/calls/start` endpoint to create an outbound call
+- Twilio webhook endpoints for call state updates
+- persisted `call_sessions` records in Supabase
+- a conversation controller that injects context and policy into the voice runtime
+
+### Voice model requirements
+
+If a voice model is used to speak to provider staff, it must:
+
+- announce itself clearly
+- state that it is assisting the patient
+- follow a structured call goal
+- avoid unsupported commitments or authorizations
+- terminate or escalate when asked for actions outside scope
+
+### Out-of-scope call behaviors
+
+The first version must not:
+
+- authorize treatment
+- provide medical advice
+- commit to payments
+- negotiate bills
+- handle emergency situations
+- impersonate the user without disclosure
+
+## 10. Twilio MVP Scope
+
+### MVP workflow
+
+1. User is in a healthcare-related task.
+2. User requests a provider call, or SafeStep suggests one.
+3. User explicitly confirms the call.
+4. SafeStep starts a Twilio outbound call.
+5. A constrained voice workflow speaks to the provider office.
+6. The app stores the call outcome and shows the result back to the user.
+
+### Required call payload
+
+- `provider_name`
+- `phone_number`
+- `call_goal`
+- `patient_name`
+- `consent_confirmed`
+- optional appointment context
+- optional callback number
+- optional constraints
+
+### Success criteria
+
+- call can be started from an app endpoint
+- call status is visible in the app
+- user can stop the call
+- the final summary is persisted
+- the voice workflow stays within the approved scope
+
+## 11. Safety, Privacy, and Policy Constraints
+
+Before any live deployment of provider calling, the system must enforce:
+
+- explicit per-call user consent
+- minimum necessary disclosure of personal information
+- audit logging of who initiated the call and why
+- transcript retention policy
+- clear provider disclosure that the caller is an AI assistant
+- refusal logic for unsupported requests
+
+If these controls are not implemented, the system should not place live provider calls.
+
+## 12. Near-Term Roadmap
+
+### Phase 1: Solidify the current harness
+
+- add backend health status to the UI
+- improve task preset coverage
+- improve event clarity and failure reporting
+
+### Phase 2: Add Twilio calling infrastructure
+
+- add call-start endpoint
+- add Twilio client integration
+- add webhook routes
+- add `call_sessions` persistence
+
+### Phase 3: Add constrained provider-call workflow
+
+- add approved call goal types
+- add user approval flow
+- add call summary capture
+- add cancellation and failure handling
+
+### Phase 4: Move toward extension architecture
+
+- shift the user-facing experience into a Chrome extension
+- keep the web app as a support console, settings surface, or internal validation tool
+
+## 13. Deprecated Documents
+
+Earlier planning documents have been moved to:
+
+- [deprecated/PRD.md](/Users/jt/Desktop/Claude/deprecated/PRD.md)
+- [deprecated/InitialPRD.md](/Users/jt/Desktop/Claude/deprecated/InitialPRD.md)
+
+They remain useful as historical context but should not be treated as the current source of truth.

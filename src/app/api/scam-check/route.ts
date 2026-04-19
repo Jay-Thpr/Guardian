@@ -1,5 +1,6 @@
 import { orchestrateCopilot } from "@/lib/orchestrator";
 import { logScamCheck } from "@/lib/scam-store";
+import { extractScamSignals, signalsToPromptContext } from "@/lib/scam-signals";
 
 const DEMO_USER_ID = "demo-user-001";
 
@@ -7,13 +8,17 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const url = body.url;
-    
+
+    const signals = url ? extractScamSignals(url, body.content || "") : null;
+    const signalContext = signals ? signalsToPromptContext(signals) : null;
+
     const response = await orchestrateCopilot({
       mode: "scam_check",
       query: body.content || body.question,
       url: body.url,
       pageTitle: body.pageTitle,
       visibleText: body.content,
+      pageSummary: signalContext ?? undefined,
     });
 
     const classification =
