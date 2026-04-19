@@ -35,7 +35,7 @@ type CopilotContext = {
 };
 
 const FALLBACK_MODELS = [
-  process.env.SAFESTEP_GEMINI_MODEL || "gemini-3.1-flash-lite",
+  process.env.SAFESTEP_GEMINI_MODEL || "gemini-3.1-flash-lite-preview",
   "gemini-2.0-flash",
 ];
 
