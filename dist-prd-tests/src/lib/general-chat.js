@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.generateGeneralChatReply = generateGeneralChatReply;
 const generative_ai_1 = require("@google/generative-ai");
+const user_context_1 = require("./user-context");
 const FALLBACK_MODELS = [
     process.env.SAFESTEP_GEMINI_MODEL || "gemini-3.1-flash-lite-preview",
     "gemini-2.0-flash",
@@ -19,6 +20,24 @@ function section(label, value) {
     }
     return `- ${label}: ${value}\n`;
 }
+function buildProfileSummary(profile) {
+    if (!profile) {
+        return "- User profile: Not available";
+    }
+    return [
+        `- Name: ${profile.name || "Unknown"}`,
+        `- Age group: ${profile.ageGroup || "Unknown"}`,
+        `- Timezone: ${profile.timezone || "Unknown"}`,
+        `- Calendar connected: ${profile.calendarConnected ? "yes" : "no"}`,
+        `- Support needs: ${(profile.supportNeeds || []).join("; ") || "None"}`,
+        `- Preferences: ${(profile.preferences || []).join("; ") || "None"}`,
+        `- Conditions: ${(profile.conditions || []).join("; ") || "None"}`,
+        profile.notes ? `- Notes: ${profile.notes}` : "",
+        profile.onboardingSummary ? `- Onboarding summary: ${profile.onboardingSummary}` : "",
+    ]
+        .filter(Boolean)
+        .join("\n");
+}
 async function runGeminiPrompt(prompt) {
     const genAI = buildGenAI();
     let lastError = null;
@@ -35,29 +54,33 @@ async function runGeminiPrompt(prompt) {
     throw lastError || new Error("Unable to reach Gemini.");
 }
 function buildPrompt(input) {
-    const profile = input.userProfile
-        ? [
-            `- Name: ${input.userProfile.name || "Unknown"}`,
-            `- Age group: ${input.userProfile.ageGroup || "Unknown"}`,
-            ...(input.userProfile.supportNeeds || []).map((item) => `- Support need: ${item}`),
-            ...(input.userProfile.preferences || []).map((item) => `- Preference: ${item}`),
-            ...(input.userProfile.conditions || []).map((item) => `- Condition: ${item}`),
-            input.userProfile.notes ? `- Notes: ${input.userProfile.notes}` : "",
-        ].join("\n")
-        : "- User profile: Not available";
+    const profile = buildProfileSummary(input.userProfile);
     const contextEntries = input.userContextEntries?.length
-        ? input.userContextEntries
-            .map((entry) => `- ${entry.category}: ${entry.title} — ${entry.detail}`)
+        ? [...input.userContextEntries]
+            .sort((left, right) => (right.priority ?? 0) - (left.priority ?? 0))
+            .map((entry) => {
+            const priority = typeof entry.priority === "number" ? ` (priority ${entry.priority})` : "";
+            return `- ${entry.category}: ${entry.title}${priority} — ${entry.detail}`;
+        })
             .join("\n")
         : "- User context entries: Not available";
+    const contextSummary = input.userContextEntries?.length
+        ? (0, user_context_1.summarizeUserContext)(input.userContextEntries)
+        : "";
     return [
         "You are SafeStep, a warm conversational assistant.",
         "Reply like a helpful human, not like a workflow engine.",
-        "Use short, natural sentences unless the user asks for detail.",
-        "If the user is casually chatting, answer casually.",
-        "If the user asks for help with the page or their task, you may mention the page context naturally.",
+        "Assume the user benefits from calm, simple, kind language.",
+        "Use short sentences. Prefer one idea at a time.",
+        "Be caring and reassuring without sounding robotic.",
+        "If the user seems confused, slow down and gently restate the next step.",
+        "If the user is casually chatting, answer casually but warmly.",
+        "If the user asks about the page or task, weave in the relevant context naturally.",
+        "If the user expresses worry, acknowledge it first before giving advice.",
+        "If you need to ask a question, ask only one short question.",
         "Do not mention policies, internal modes, or that you are following a system prompt.",
-        "If the question is unclear, ask one short clarifying question.",
+        "Do not give medical, legal, or financial certainty unless the context clearly supports it.",
+        "Do not over-format. Plain text only.",
         "Return plain text only. No markdown, no code fences, no JSON.",
         "",
         "User profile:",
@@ -65,6 +88,9 @@ function buildPrompt(input) {
         "",
         "User context entries:",
         contextEntries,
+        "",
+        "Context summary:",
+        contextSummary || "- None",
         "",
         "Visible browser context:",
         section("URL", input.url),
@@ -81,15 +107,17 @@ function buildPrompt(input) {
         section("Next stage", input.taskMemory?.nextStageTitle || null),
         "",
         "Appointment context:",
+        section("Connected", input.appointment?.connected ? "yes" : "no"),
         section("Summary", input.appointment?.summary || null),
         section("When", input.appointment?.whenLabel || null),
         section("Location", input.appointment?.location || null),
         section("Description", input.appointment?.description || null),
+        section("Prep notes", input.appointment?.prepNotes || null),
         "",
-        "Reply rules:",
-        "- Be conversational and direct.",
-        "- Do not over-format.",
-        "- If the user seems to want a task completed, explain the next practical step plainly.",
+        "Reply shape:",
+        "- Start with the most helpful, warm answer.",
+        "- Keep it grounded in the user's context.",
+        "- If appropriate, end with one small next step or one short check-in question.",
     ]
         .filter(Boolean)
         .join("\n");
