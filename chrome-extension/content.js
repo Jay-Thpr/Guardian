@@ -109,6 +109,7 @@ function showSafeStepAlert({ tone, explanation, bullets }) {
 
   document.getElementById('safestep-dismiss').onclick = () => {
     void closeOverlay();
+    history.back();
   };
   document.getElementById('safestep-proceed').onclick = () => {
     void closeOverlay();
@@ -127,6 +128,7 @@ let widgetOpen = false;
 let widgetRecording = false;
 let widgetRecognition = null;
 let widgetIsSending = false;
+let activeTask = null;
 
 const WIDGET_CSS = `
   :host {
@@ -330,6 +332,7 @@ const PANEL_HTML = `
       <span id="panel-title">SafeStep</span>
       <button id="close-btn" aria-label="Close">✕</button>
     </div>
+    <div id="task-progress" style="display:none;padding:8px 12px;background:#f0f7ff;border-bottom:1px solid #e2e8f0;font-size:13px;font-weight:600;color:#1a6fad;"></div>
     <div id="messages" aria-live="polite"></div>
     <div id="input-row">
       <textarea id="text-input" placeholder="Ask me anything…" rows="1"></textarea>
@@ -433,7 +436,17 @@ function togglePanel() {
     widgetRecognition.onend = widgetStopMic;
   }
 
-  widgetAppend('Hi! I\'m SafeStep. Ask me if this page is safe, or anything else.', 'assistant');
+  chrome.storage.local.get(['safestep_memory', 'safestep_pending_greeting']).then(stored => {
+    const greeting = stored.safestep_pending_greeting || buildContextualGreeting(stored.safestep_memory);
+    chrome.storage.local.remove('safestep_pending_greeting');
+    widgetAppend(greeting, 'assistant');
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+      const utt = new SpeechSynthesisUtterance(greeting);
+      utt.rate = 0.88;
+      window.speechSynthesis.speak(utt);
+    }
+  });
   setTimeout(() => { if (input) input.focus(); }, 80);
   void panel;
 }
@@ -471,6 +484,10 @@ async function widgetSend() {
   const text = input.value.trim();
   if (!text) return;
 
+  const stored = await chrome.storage.local.get(['safestep_memory', 'safestep_appointments']).catch(() => ({}));
+  const taskMemory = stored.safestep_memory || null;
+  const appointment = stored.safestep_appointments?.appointments?.[0] || null;
+
   widgetIsSending = true;
   widgetSetBusy(true);
   input.value = '';
@@ -486,6 +503,8 @@ async function widgetSend() {
         url: location.href,
         pageTitle: document.title,
         visibleText: document.body?.innerText?.slice(0, 2000) || undefined,
+        taskMemory,
+        appointment,
       }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -498,6 +517,12 @@ async function widgetSend() {
       utt.rate = 0.88;
       window.speechSynthesis.speak(utt);
     }
+    if (data.task_memory) {
+      chrome.storage.local.set({ safestep_memory: data.task_memory }).catch(() => {});
+    }
+    if (data.suggestedActions?.length) {
+      widgetShowActions(data.suggestedActions);
+    }
   } catch {
     widgetAppend('Could not connect right now. Please try again.', 'error');
   } finally {
@@ -506,6 +531,50 @@ async function widgetSend() {
     const inp = shadow && shadow.getElementById('text-input');
     if (inp) inp.focus();
   }
+}
+
+function buildContextualGreeting(memory) {
+  if (memory?.currentTask) {
+    return `Welcome back. Last time you were working on: ${memory.currentTask}. Would you like to continue?`;
+  }
+  return 'Hi, I\'m SafeStep. I\'m here to help you. What would you like to do?';
+}
+
+function widgetShowActions(actions) {
+  const list = shadow && shadow.getElementById('messages');
+  if (!list || !actions || !actions.length) return;
+
+  const row = document.createElement('div');
+  row.className = 'action-row';
+  row.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;padding:4px 0;';
+
+  actions.forEach(label => {
+    const btn = document.createElement('button');
+    btn.className = 'action-chip';
+    btn.style.cssText = 'padding:10px 16px;font-size:14px;font-weight:700;border-radius:20px;border:2px solid #1a6fad;background:#f0f7ff;color:#1a6fad;cursor:pointer;font-family:inherit;';
+    btn.textContent = label;
+    btn.onclick = () => {
+      row.remove();
+      const input = shadow.getElementById('text-input');
+      if (input) input.value = label;
+      widgetSend();
+    };
+    row.appendChild(btn);
+  });
+
+  list.appendChild(row);
+  list.scrollTop = list.scrollHeight;
+}
+
+function updateTaskProgress(stepIndex, totalSteps, stepLabel) {
+  const el = shadow && shadow.getElementById('task-progress');
+  if (!el) return;
+  if (stepIndex === null || totalSteps === null) {
+    el.style.display = 'none';
+    return;
+  }
+  el.style.display = 'block';
+  el.textContent = `Step ${stepIndex + 1} of ${totalSteps} — ${stepLabel || ''}`;
 }
 
 function widgetStartMic() {
@@ -536,6 +605,32 @@ chrome.runtime.onMessage.addListener((msg) => {
       if (await isAlertDismissed(location.href)) return;
       showSafeStepAlert(msg);
     })();
+  }
+
+  if (msg.type === 'SAFESTEP_AUTO_OPEN') {
+    if (!widgetOpen) togglePanel();
+    if (msg.greeting) {
+      chrome.storage.local.set({ safestep_pending_greeting: msg.greeting }).catch(() => {});
+    }
+    if (msg.suggestedActions?.length) {
+      // Delay so panel has time to render
+      setTimeout(() => widgetShowActions(msg.suggestedActions), 300);
+    }
+  }
+
+  if (msg.type === 'SAFESTEP_REMIND') {
+    if (!widgetOpen) togglePanel();
+    const announcement = msg.announcement || 'You have an upcoming appointment.';
+    setTimeout(() => {
+      widgetAppend(announcement, 'assistant');
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+        const utt = new SpeechSynthesisUtterance(announcement);
+        utt.rate = 0.88;
+        window.speechSynthesis.speak(utt);
+      }
+      widgetShowActions(['Yes, help me prepare', 'Remind me in 30 minutes']);
+    }, 300);
   }
 });
 
