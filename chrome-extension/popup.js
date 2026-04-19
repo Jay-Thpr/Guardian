@@ -50,10 +50,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   fetch(`${API_BASE}/api/appointments`, { signal: controller.signal })
     .then(res => {
-      clearTimeout(timer);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return res.json();
     })
     .then(data => renderAppointment(data))
-    .catch((err) => { console.error('[SafeStep] fetch error:', err); showState('state-error'); });
+    .catch((err) => { console.error('[SafeStep] fetch error:', err); showState('state-error'); })
+    .finally(() => clearTimeout(timer));
 });
