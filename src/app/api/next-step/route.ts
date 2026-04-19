@@ -1,4 +1,7 @@
 import { orchestrateCopilot } from "@/lib/orchestrator";
+import { updateTaskMemory } from "@/lib/memory-store";
+
+const DEMO_USER_ID = "demo-user-001";
 
 export async function POST(request: Request) {
   try {
@@ -18,6 +21,15 @@ export async function POST(request: Request) {
           }
         : undefined,
     });
+
+    if (response.memoryUpdate) {
+      updateTaskMemory(DEMO_USER_ID, {
+        current_task: response.memoryUpdate.currentTask,
+        last_step: response.memoryUpdate.lastStep,
+        current_url: body.url,
+        page_title: body.pageTitle,
+      });
+    }
 
     return Response.json({
       ...response,

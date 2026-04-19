@@ -4,6 +4,7 @@ import { Suspense, useState, useEffect, useRef } from "react";
 import CopilotPanel from "@/components/CopilotPanel";
 import BrowserTaskArea from "@/components/BrowserTaskArea";
 import CalendarNoticeBanner from "@/components/CalendarNoticeBanner";
+import TwilioCallPanel from "@/components/TwilioCallPanel";
 
 export default function Home() {
   const [currentUrl, setCurrentUrl] = useState("");
@@ -53,6 +54,11 @@ export default function Home() {
       <BrowserTaskArea
         onUrlChange={setCurrentUrl}
         onPageTitleChange={setCurrentPageTitle}
+      />
+
+      <TwilioCallPanel
+        currentUrl={currentUrl}
+        currentPageTitle={currentPageTitle}
       />
 
       {/* Overlay copilot panel */}

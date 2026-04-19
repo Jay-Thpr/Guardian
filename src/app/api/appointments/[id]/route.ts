@@ -3,10 +3,10 @@ import { addPrepNotes } from "@/lib/google-calendar";
 
 export async function PATCH(
   request: NextRequest,
-  ctx: RouteContext<"/api/appointments/[id]">
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await ctx.params;
+    const { id } = await params;
     const body = await request.json();
     const { notes } = body;
 
