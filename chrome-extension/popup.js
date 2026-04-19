@@ -10,6 +10,7 @@ let appointment = null;
 let taskMemory = null;
 let isSending = false;
 let alertBannerDismissed = false;
+let autoSafeCheckStarted = false;
 
 // ─── Voice output (TTS) ──────────────────────────────────────────────────────
 
@@ -377,6 +378,17 @@ async function autoAnalyzePage() {
   }
 }
 
+async function runInitialSafeCheck() {
+  if (autoSafeCheckStarted || !pageUrl) return;
+  autoSafeCheckStarted = true;
+
+  try {
+    await handleSafe();
+  } catch {
+    autoSafeCheckStarted = false;
+  }
+}
+
 async function sendMessage() {
   if (isSending) return;
   const input = document.getElementById('chat-input');
@@ -471,6 +483,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Auto-analyze the current page
   void autoAnalyzePage();
+  void runInitialSafeCheck();
 
   // Fetch task memory — read from local storage first (set by background.js and widget)
   chrome.storage.local.get('safestep_memory').then(stored => {
