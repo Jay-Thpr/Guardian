@@ -467,6 +467,68 @@ header {
   box-shadow: 0 0 0 3px rgba(26,111,173,0.12);
 }
 
+/* Mic button */
+@keyframes pulse-ring {
+  0%   { box-shadow: 0 0 0 0 rgba(220,38,38,0.5); }
+  70%  { box-shadow: 0 0 0 8px rgba(220,38,38,0); }
+  100% { box-shadow: 0 0 0 0 rgba(220,38,38,0); }
+}
+
+.chat-mic-btn {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  background: var(--surface-2);
+  color: var(--text-2);
+  border: 1.5px solid var(--border);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 150ms ease;
+  touch-action: manipulation;
+}
+
+.chat-mic-btn svg { width: 18px; height: 18px; }
+
+.chat-mic-btn:hover:not(:disabled) {
+  background: var(--primary-light);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.chat-mic-btn.recording {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+  animation: pulse-ring 1.2s ease-in-out infinite;
+}
+
+.chat-mic-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.chat-mic-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Speaker button on messages */
+.msg-speak-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-3);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 150ms ease;
+}
+
+.msg-speak-btn svg { width: 11px; height: 11px; }
+.msg-speak-btn:hover { color: var(--primary); border-color: var(--primary); }
+
 .chat-send-btn {
   width: 44px;
   height: 44px;

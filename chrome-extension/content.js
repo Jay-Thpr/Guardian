@@ -76,6 +76,19 @@ function showSafeStepAlert({ tone, explanation, bullets }) {
 
   document.body.appendChild(overlay);
 
+  // Speak the warning aloud
+  if (window.speechSynthesis) {
+    const msg = new SpeechSynthesisUtterance(
+      isDanger
+        ? 'Warning! This page looks dangerous. Do not enter any personal information.'
+        : 'Caution. This page has warning signs. Please be careful.'
+    );
+    msg.rate = 0.88;
+    msg.volume = 1;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(msg);
+  }
+
   document.getElementById('safestep-dismiss').onclick = () => overlay.remove();
   document.getElementById('safestep-proceed').onclick = () => overlay.remove();
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });

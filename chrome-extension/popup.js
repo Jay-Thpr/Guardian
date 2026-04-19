@@ -8,6 +8,68 @@ let pageContent = '';
 let taskMemory = null;
 let isSending = false;
 
+// ─── Voice output (TTS) ──────────────────────────────────────────────────────
+
+function speakText(text) {
+  if (!window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.rate = 0.88;
+  utterance.pitch = 1;
+  utterance.volume = 1;
+  window.speechSynthesis.speak(utterance);
+}
+
+// ─── Voice input (STT) ───────────────────────────────────────────────────────
+
+let recognition = null;
+let isRecording = false;
+
+function initVoiceInput() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) return;
+
+  recognition = new SpeechRecognition();
+  recognition.lang = 'en-US';
+  recognition.continuous = false;
+  recognition.interimResults = false;
+
+  recognition.onresult = (e) => {
+    const transcript = e.results[0][0].transcript;
+    const input = document.getElementById('chat-input');
+    input.value = transcript;
+    autoResize(input);
+    stopRecording();
+    sendMessage();
+  };
+
+  recognition.onerror = () => stopRecording();
+  recognition.onend = () => stopRecording();
+}
+
+function startRecording() {
+  if (!recognition || isRecording) return;
+  isRecording = true;
+  document.getElementById('chat-mic').classList.add('recording');
+  document.getElementById('chat-mic').setAttribute('aria-label', 'Stop recording');
+  recognition.start();
+}
+
+function stopRecording() {
+  isRecording = false;
+  const btn = document.getElementById('chat-mic');
+  if (btn) {
+    btn.classList.remove('recording');
+    btn.setAttribute('aria-label', 'Speak your question');
+  }
+  try { recognition?.stop(); } catch { /* already stopped */ }
+}
+
+function toggleRecording() {
+  if (isRecording) stopRecording();
+  else startRecording();
+}
+
 // ─── Tone detection ───────────────────────────────────────────────────────────
 
 function deriveTone(value) {
@@ -94,7 +156,9 @@ function appendMessage(text, role, tone, bullets) {
   } else {
     el.className = 'msg msg-assistant';
     if (tone && tone !== 'neutral') el.dataset.tone = tone;
-    el.innerHTML = `<div class="msg-label">SafeStep</div><div>${escapeHtml(text)}</div>${bulletsHtml}`;
+    const speakerSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>`;
+    el.innerHTML = `<div class="msg-label">SafeStep</div><div>${escapeHtml(text)}</div>${bulletsHtml}<button class="msg-speak-btn" aria-label="Read aloud">${speakerSvg} Read aloud</button>`;
+    el.querySelector('.msg-speak-btn').addEventListener('click', () => speakText(text));
   }
 
   const list = document.getElementById('chat-messages');
@@ -229,6 +293,11 @@ function showAlertBanner(tone, bullets) {
   }
 
   document.getElementById('alert-details-btn').onclick = () => switchTab('chat');
+
+  const spokenTitle = tone === 'danger'
+    ? 'Warning! This page looks dangerous. Do not enter any personal details.'
+    : 'Caution. This page has some warning signs. Please proceed carefully.';
+  speakText(spokenTitle);
 }
 
 async function autoAnalyzePage() {
@@ -322,6 +391,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('btn-next').addEventListener('click', handleNext);
   document.getElementById('btn-memory').addEventListener('click', handleMemory);
   document.getElementById('btn-show-content').addEventListener('click', handleShowContent);
+
+  // Voice
+  initVoiceInput();
+  document.getElementById('chat-mic').addEventListener('click', toggleRecording);
+  if (!window.SpeechRecognition && !window.webkitSpeechRecognition) {
+    document.getElementById('chat-mic').disabled = true;
+    document.getElementById('chat-mic').title = 'Voice input not supported in this browser';
+  }
 
   // Chat input
   document.getElementById('chat-send').addEventListener('click', sendMessage);
