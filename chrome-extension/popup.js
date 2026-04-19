@@ -81,6 +81,16 @@ function deriveTone(value) {
   return 'neutral';
 }
 
+function getAlertDismissKey(url) {
+  return `alertDismissed:${url}`;
+}
+
+async function isAlertDismissed(url) {
+  if (!url) return false;
+  const cached = await chrome.storage.session.get(getAlertDismissKey(url)).catch(() => ({}));
+  return Boolean(cached[getAlertDismissKey(url)]);
+}
+
 // ─── State helpers ────────────────────────────────────────────────────────────
 
 function showState(id) {
@@ -167,13 +177,6 @@ function appendMessage(text, role, tone, bullets) {
   list.appendChild(el);
   list.scrollTop = list.scrollHeight;
   return el;
-}
-
-function getLastAssistantText() {
-  const msgs = document.querySelectorAll('#chat-messages .msg-assistant');
-  if (!msgs.length) return null;
-  const last = msgs[msgs.length - 1];
-  return last.querySelector('div:last-child')?.textContent || null;
 }
 
 function setActionButtonsDisabled(disabled) {
@@ -274,6 +277,7 @@ function handleShowContent() {
 async function triggerPageModal({ tone, explanation, bullets }) {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.url || await isAlertDismissed(tab.url)) return;
     if (tab?.id) {
       chrome.tabs.sendMessage(tab.id, { type: 'SAFESTEP_ALERT', tone, explanation, bullets }).catch(() => {});
     }
@@ -313,11 +317,12 @@ async function autoAnalyzePage() {
   // Cache per URL for the session — avoid re-calling on every popup open
   const cacheKey = `analysis:${pageUrl}`;
   const cached = await chrome.storage.session.get(cacheKey).catch(() => ({}));
+  const dismissed = await isAlertDismissed(pageUrl);
   if (cached[cacheKey]) {
     const { explanation, tone, bullets } = cached[cacheKey];
     appendMessage(explanation, 'assistant', tone, bullets);
     if (tone === 'danger' || tone === 'warning') showAlertBanner(tone, bullets);
-    if (tone === 'danger') {
+    if (tone === 'danger' && !dismissed) {
       switchTab('chat');
       triggerPageModal({ tone, explanation, bullets });
     }
@@ -338,7 +343,7 @@ async function autoAnalyzePage() {
     const explanation = data.explanation || 'I checked this page for you.';
     appendMessage(explanation, 'assistant', tone, bullets);
     if (tone === 'danger' || tone === 'warning') showAlertBanner(tone, bullets);
-    if (tone === 'danger') {
+    if (tone === 'danger' && !dismissed) {
       switchTab('chat');
       triggerPageModal({ tone, explanation, bullets });
     }

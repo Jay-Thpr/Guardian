@@ -2,6 +2,21 @@ const API_BASE = 'http://localhost:3000';
 
 // ─── Danger modal ─────────────────────────────────────────────────────────────
 
+function getAlertDismissKey(url) {
+  return `alertDismissed:${url}`;
+}
+
+async function isAlertDismissed(url) {
+  if (!url) return false;
+  const cached = await chrome.storage.session.get(getAlertDismissKey(url)).catch(() => ({}));
+  return Boolean(cached[getAlertDismissKey(url)]);
+}
+
+async function dismissAlertForPage(url) {
+  if (!url) return;
+  await chrome.storage.session.set({ [getAlertDismissKey(url)]: true }).catch(() => {});
+}
+
 function showSafeStepAlert({ tone, explanation, bullets }) {
   if (document.getElementById('safestep-overlay')) return;
 
@@ -87,9 +102,22 @@ function showSafeStepAlert({ tone, explanation, bullets }) {
     window.speechSynthesis.speak(msg);
   }
 
-  document.getElementById('safestep-dismiss').onclick = () => overlay.remove();
-  document.getElementById('safestep-proceed').onclick = () => overlay.remove();
-  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  const closeOverlay = async () => {
+    await dismissAlertForPage(location.href);
+    overlay.remove();
+  };
+
+  document.getElementById('safestep-dismiss').onclick = () => {
+    void closeOverlay();
+  };
+  document.getElementById('safestep-proceed').onclick = () => {
+    void closeOverlay();
+  };
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay) {
+      void closeOverlay();
+    }
+  });
 }
 
 // ─── Floating voice-chat widget (Shadow DOM for full isolation) ───────────────
@@ -503,7 +531,12 @@ function widgetToggleMic() {
 // ─── Message listener ─────────────────────────────────────────────────────────
 
 chrome.runtime.onMessage.addListener((msg) => {
-  if (msg.type === 'SAFESTEP_ALERT') showSafeStepAlert(msg);
+  if (msg.type === 'SAFESTEP_ALERT') {
+    void (async () => {
+      if (await isAlertDismissed(location.href)) return;
+      showSafeStepAlert(msg);
+    })();
+  }
 });
 
 // ─── Send page content to background ─────────────────────────────────────────
