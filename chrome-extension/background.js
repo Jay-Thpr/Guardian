@@ -8,31 +8,36 @@ function deriveTone(value) {
   return 'neutral';
 }
 
-async function analyzeTab(tabId, url, title) {
-  // Skip chrome:// pages, new tabs, extensions
+function applyBadge(tone) {
+  if (tone === 'danger') {
+    chrome.action.setBadgeText({ text: '!' });
+    chrome.action.setBadgeBackgroundColor({ color: '#dc2626' });
+  } else if (tone === 'warning') {
+    chrome.action.setBadgeText({ text: '?' });
+    chrome.action.setBadgeBackgroundColor({ color: '#d97706' });
+  } else {
+    chrome.action.setBadgeText({ text: '' });
+  }
+}
+
+async function analyzeTab(tabId, url, title, content) {
   if (!url || url.startsWith('chrome') || url.startsWith('about') || url.startsWith('extension')) return;
 
   const cacheKey = `analysis:${url}`;
   const cached = await chrome.storage.session.get(cacheKey).catch(() => ({}));
   if (cached[cacheKey]) {
     applyBadge(cached[cacheKey].tone);
+    if (cached[cacheKey].tone === 'danger' || cached[cacheKey].tone === 'warning') {
+      chrome.tabs.sendMessage(tabId, { type: 'SAFESTEP_ALERT', ...cached[cacheKey] }).catch(() => {});
+    }
     return;
   }
-
-  let pageContent = '';
-  try {
-    const [{ result }] = await chrome.scripting.executeScript({
-      target: { tabId },
-      func: () => document.body?.innerText?.slice(0, 4000) || '',
-    });
-    pageContent = result || '';
-  } catch { /* page may not be injectable */ }
 
   try {
     const res = await fetch(`${API_BASE}/api/scam-check`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url, pageTitle: title, content: pageContent }),
+      body: JSON.stringify({ url, pageTitle: title, content }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
@@ -52,20 +57,8 @@ async function analyzeTab(tabId, url, title) {
   }
 }
 
-function applyBadge(tone) {
-  if (tone === 'danger') {
-    chrome.action.setBadgeText({ text: '!' });
-    chrome.action.setBadgeBackgroundColor({ color: '#dc2626' });
-  } else if (tone === 'warning') {
-    chrome.action.setBadgeText({ text: '?' });
-    chrome.action.setBadgeBackgroundColor({ color: '#d97706' });
-  } else {
-    chrome.action.setBadgeText({ text: '' });
-  }
-}
-
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status === 'complete' && tab.url) {
-    analyzeTab(tabId, tab.url, tab.title || '');
+chrome.runtime.onMessage.addListener((msg, sender) => {
+  if (msg.type === 'PAGE_CONTENT' && sender.tab?.id) {
+    analyzeTab(sender.tab.id, msg.url, msg.title, msg.content);
   }
 });

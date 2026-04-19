@@ -84,3 +84,11 @@ chrome.runtime.onMessage.addListener((msg) => {
     showSafeStepAlert(msg);
   }
 });
+
+// Send page content to background for analysis
+chrome.runtime.sendMessage({
+  type: 'PAGE_CONTENT',
+  url: location.href,
+  title: document.title,
+  content: document.body?.innerText?.slice(0, 4000) || '',
+});
