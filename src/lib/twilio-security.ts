@@ -7,7 +7,11 @@ function buildExpectedSignature(
   url: string,
   params: Record<string, string>
 ) {
-  const sortedPairs = Object.entries(params).sort(([a], [b]) => a.localeCompare(b));
+  const sortedPairs = Object.entries(params).sort(([a], [b]) => {
+    if (a < b) return -1;
+    if (a > b) return 1;
+    return 0;
+  });
   const payload = sortedPairs.reduce((acc, [key, value]) => `${acc}${key}${value}`, url);
 
   return crypto.createHmac("sha1", authToken).update(payload).digest("base64");
