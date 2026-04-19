@@ -21,12 +21,11 @@ export default function GoogleSearchEmbed() {
   return (
     <section className="google-search-shell">
       <div className="google-search-header">
-        <div>
-          <p className="google-search-eyebrow">Embedded web view</p>
-          <h2>Google Search inside SafeStep</h2>
-          <p className="google-search-copy">
-            Search the web from the main page while keeping the SafeStep workspace open below.
-          </p>
+        <div className="google-brand" aria-label="SafeStep">
+          <span className="google-brand-mark" aria-hidden="true">
+            S
+          </span>
+          <span className="google-brand-wordmark">SafeStep</span>
         </div>
 
         <form className="google-search-form" onSubmit={submitSearch}>
@@ -55,15 +54,6 @@ export default function GoogleSearchEmbed() {
           title="Embedded Google Search"
           referrerPolicy="no-referrer-when-downgrade"
         />
-      </div>
-
-      <div className="google-search-footer">
-        <p>
-          If the frame is blocked by your browser, use the direct Google link instead.
-        </p>
-        <a href={searchUrl} target="_blank" rel="noreferrer" className="google-search-link">
-          Open in Google
-        </a>
       </div>
     </section>
   );

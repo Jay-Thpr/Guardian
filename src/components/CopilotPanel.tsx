@@ -7,6 +7,7 @@ interface CopilotPanelProps {
   currentUrl: string;
   currentPageTitle: string;
   onClose: () => void;
+  onRunPharmacyTrace: () => void;
 }
 
 type ChatMessage = {
@@ -73,6 +74,7 @@ export default function CopilotPanel({
   currentUrl,
   currentPageTitle,
   onClose,
+  onRunPharmacyTrace,
 }: CopilotPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -476,6 +478,15 @@ export default function CopilotPanel({
           <button className="action-btn action-btn-indigo" onClick={handleAppointments} disabled={isLoading}>
             <span className="text-2xl">📅</span>
             <span>Appointments</span>
+          </button>
+
+          <button
+            className="action-btn action-btn-pharmacy"
+            onClick={onRunPharmacyTrace}
+            disabled={isLoading}
+          >
+            <span className="text-2xl">Rx</span>
+            <span>Trace Pharmacy</span>
           </button>
 
           <div className="flex gap-2 pt-1">

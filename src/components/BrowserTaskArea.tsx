@@ -1,6 +1,13 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
 
 interface BrowserTaskAreaProps {
   onUrlChange: (url: string) => void;
@@ -9,6 +16,10 @@ interface BrowserTaskAreaProps {
   panelCopy?: string;
   examplePrompts?: string[];
   initialTask?: string;
+}
+
+export interface BrowserTaskAreaHandle {
+  runTask: (goal: string) => void;
 }
 
 interface StepEvent {
@@ -20,7 +31,8 @@ interface StepEvent {
   status?: string;
 }
 
-export default function BrowserTaskArea({
+const BrowserTaskArea = forwardRef<BrowserTaskAreaHandle, BrowserTaskAreaProps>(function BrowserTaskArea(
+{
   onUrlChange,
   onPageTitleChange,
   panelTitle = "Browser Assistant",
@@ -31,7 +43,9 @@ export default function BrowserTaskArea({
     '"Go to Medicare.gov and find my benefits"',
   ],
   initialTask = "",
-}: BrowserTaskAreaProps) {
+}: BrowserTaskAreaProps,
+ref,
+) {
   const [taskInput, setTaskInput] = useState(initialTask);
   const [status, setStatus] = useState<"idle" | "running" | "paused" | "error">("idle");
   const [steps, setSteps] = useState<StepEvent[]>([]);
@@ -149,6 +163,16 @@ export default function BrowserTaskArea({
   const startTask = useCallback(() => {
     void runTask(taskInput.trim());
   }, [taskInput, runTask]);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      runTask(goal: string) {
+        void runTask(goal);
+      },
+    }),
+    [runTask],
+  );
 
   const getStatusBadge = () => {
     const configs = {
@@ -297,4 +321,6 @@ export default function BrowserTaskArea({
       </div>
     </div>
   );
-}
+});
+
+export default BrowserTaskArea;
