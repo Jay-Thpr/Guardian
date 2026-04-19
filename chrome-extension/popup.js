@@ -11,10 +11,10 @@ let isSending = false;
 // ─── Tone detection ───────────────────────────────────────────────────────────
 
 function deriveTone(value) {
-  if (!value) return 'neutral';
-  if (/safe|ready|ok/i.test(value)) return 'safe';
-  if (/warning|careful|not sure/i.test(value)) return 'warning';
-  if (/risky|danger|stop/i.test(value)) return 'danger';
+  const v = (value || '').toLowerCase();
+  if (v === 'risky') return 'danger';
+  if (v === 'uncertain' || v === 'not-sure') return 'warning';
+  if (v === 'safe') return 'safe';
   return 'neutral';
 }
 
@@ -240,11 +240,11 @@ async function autoAnalyzePage() {
   if (cached[cacheKey]) {
     const { explanation, tone, bullets } = cached[cacheKey];
     appendMessage(explanation, 'assistant', tone, bullets);
-    if (tone === 'danger' || tone === 'warning') showAlertBanner(tone, bullets);
-    if (tone === 'danger') {
-      switchTab('chat');
+    if (tone === 'danger' || tone === 'warning') {
+      showAlertBanner(tone, bullets);
       triggerPageModal({ tone, explanation, bullets });
     }
+    if (tone === 'danger') switchTab('chat');
     return;
   }
 
@@ -261,11 +261,11 @@ async function autoAnalyzePage() {
       ? data.suspicious_signals : null;
     const explanation = data.explanation || 'I checked this page for you.';
     appendMessage(explanation, 'assistant', tone, bullets);
-    if (tone === 'danger' || tone === 'warning') showAlertBanner(tone, bullets);
-    if (tone === 'danger') {
-      switchTab('chat');
+    if (tone === 'danger' || tone === 'warning') {
+      showAlertBanner(tone, bullets);
       triggerPageModal({ tone, explanation, bullets });
     }
+    if (tone === 'danger') switchTab('chat');
     chrome.storage.session.set({ [cacheKey]: { explanation, tone, bullets } }).catch(() => {});
   } catch {
     /* silent */

@@ -1,11 +1,10 @@
 const API_BASE = 'http://localhost:3000';
 
-function deriveTone(value) {
-  if (!value) return 'neutral';
-  if (/safe|ready|ok/i.test(value)) return 'safe';
-  if (/warning|careful|not sure/i.test(value)) return 'warning';
-  if (/risky|danger|stop/i.test(value)) return 'danger';
-  return 'neutral';
+function toneFromResponse(data) {
+  const val = (data.classification || data.riskLevel || '').toLowerCase();
+  if (val === 'risky') return 'danger';
+  if (val === 'uncertain' || val === 'not-sure') return 'warning';
+  return 'safe';
 }
 
 function applyBadge(tone) {
@@ -27,7 +26,7 @@ async function analyzeTab(tabId, url, title, content) {
   const cached = await chrome.storage.session.get(cacheKey).catch(() => ({}));
   if (cached[cacheKey]) {
     applyBadge(cached[cacheKey].tone);
-    if (cached[cacheKey].tone === 'danger') {
+    if (cached[cacheKey].tone === 'danger' || cached[cacheKey].tone === 'warning') {
       chrome.tabs.sendMessage(tabId, { type: 'SAFESTEP_ALERT', ...cached[cacheKey] }).catch(() => {});
     }
     return;
@@ -41,7 +40,7 @@ async function analyzeTab(tabId, url, title, content) {
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-    const tone = deriveTone(data.classification || data.riskLevel);
+    const tone = toneFromResponse(data);
     const bullets = Array.isArray(data.suspicious_signals) && data.suspicious_signals.length
       ? data.suspicious_signals : null;
     const explanation = data.explanation || 'I checked this page for you.';
@@ -49,7 +48,7 @@ async function analyzeTab(tabId, url, title, content) {
     await chrome.storage.session.set({ [cacheKey]: { explanation, tone, bullets } }).catch(() => {});
     applyBadge(tone);
 
-    if (tone === 'danger') {
+    if (tone === 'danger' || tone === 'warning') {
       chrome.tabs.sendMessage(tabId, { type: 'SAFESTEP_ALERT', tone, explanation, bullets }).catch(() => {});
     }
   } catch {
