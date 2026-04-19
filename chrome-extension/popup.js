@@ -240,11 +240,11 @@ async function autoAnalyzePage() {
   if (cached[cacheKey]) {
     const { explanation, tone, bullets } = cached[cacheKey];
     appendMessage(explanation, 'assistant', tone, bullets);
-    if (tone === 'danger' || tone === 'warning') {
-      showAlertBanner(tone, bullets);
+    if (tone === 'danger' || tone === 'warning') showAlertBanner(tone, bullets);
+    if (tone === 'danger') {
+      switchTab('chat');
       triggerPageModal({ tone, explanation, bullets });
     }
-    if (tone === 'danger') switchTab('chat');
     return;
   }
 
@@ -261,11 +261,11 @@ async function autoAnalyzePage() {
       ? data.suspicious_signals : null;
     const explanation = data.explanation || 'I checked this page for you.';
     appendMessage(explanation, 'assistant', tone, bullets);
-    if (tone === 'danger' || tone === 'warning') {
-      showAlertBanner(tone, bullets);
+    if (tone === 'danger' || tone === 'warning') showAlertBanner(tone, bullets);
+    if (tone === 'danger') {
+      switchTab('chat');
       triggerPageModal({ tone, explanation, bullets });
     }
-    if (tone === 'danger') switchTab('chat');
     chrome.storage.session.set({ [cacheKey]: { explanation, tone, bullets } }).catch(() => {});
   } catch {
     /* silent */

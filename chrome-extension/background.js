@@ -26,7 +26,7 @@ async function analyzeTab(tabId, url, title, content) {
   const cached = await chrome.storage.session.get(cacheKey).catch(() => ({}));
   if (cached[cacheKey]) {
     applyBadge(cached[cacheKey].tone);
-    if (cached[cacheKey].tone === 'danger' || cached[cacheKey].tone === 'warning') {
+    if (cached[cacheKey].tone === 'danger') {
       chrome.tabs.sendMessage(tabId, { type: 'SAFESTEP_ALERT', ...cached[cacheKey] }).catch(() => {});
     }
     return;
@@ -48,7 +48,7 @@ async function analyzeTab(tabId, url, title, content) {
     await chrome.storage.session.set({ [cacheKey]: { explanation, tone, bullets } }).catch(() => {});
     applyBadge(tone);
 
-    if (tone === 'danger' || tone === 'warning') {
+    if (tone === 'danger') {
       chrome.tabs.sendMessage(tabId, { type: 'SAFESTEP_ALERT', tone, explanation, bullets }).catch(() => {});
     }
   } catch {
