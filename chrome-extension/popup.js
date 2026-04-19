@@ -111,7 +111,7 @@ function getLastAssistantText() {
 }
 
 function setActionButtonsDisabled(disabled) {
-  ['btn-safe', 'btn-next', 'btn-memory', 'btn-repeat', 'chat-send'].forEach(id => {
+  ['btn-safe', 'btn-next', 'btn-memory', 'chat-send'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.disabled = disabled;
   });
@@ -195,11 +195,9 @@ function handleMemory() {
   );
 }
 
-function handleRepeat() {
-  const text = getLastAssistantText();
-  if (!text) return;
-  appendMessage('Say that again.', 'user');
-  appendMessage(text, 'assistant', 'neutral');
+function handleShowContent() {
+  appendMessage('Show me the page text.', 'user');
+  appendMessage(pageContent || '(no page text captured)', 'assistant', 'neutral');
 }
 
 async function autoAnalyzePage() {
@@ -275,7 +273,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('btn-safe').addEventListener('click', handleSafe);
   document.getElementById('btn-next').addEventListener('click', handleNext);
   document.getElementById('btn-memory').addEventListener('click', handleMemory);
-  document.getElementById('btn-repeat').addEventListener('click', handleRepeat);
+  document.getElementById('btn-show-content').addEventListener('click', handleShowContent);
 
   // Chat input
   document.getElementById('chat-send').addEventListener('click', sendMessage);
