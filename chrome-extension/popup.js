@@ -66,8 +66,9 @@ function appendMessage(text, role) {
 }
 
 async function sendMessage() {
-  const input = document.getElementById('chat-input');
   const btn = document.getElementById('chat-send');
+  if (btn.disabled) return;
+  const input = document.getElementById('chat-input');
   const text = input.value.trim();
   if (!text) return;
 
