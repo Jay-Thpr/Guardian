@@ -4,6 +4,7 @@ const API_BASE = 'http://localhost:3000';
 
 let pageUrl = '';
 let pageTitle = '';
+let pageContent = '';
 let taskMemory = null;
 let isSending = false;
 
@@ -122,7 +123,7 @@ async function handleSafe() {
     const res = await fetch(`${API_BASE}/api/scam-check`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: pageUrl, pageTitle, content: '' }),
+      body: JSON.stringify({ url: pageUrl, pageTitle, content: pageContent }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
@@ -149,6 +150,7 @@ async function handleNext() {
       body: JSON.stringify({
         url: pageUrl,
         pageTitle,
+        pageContent: pageContent || undefined,
         question: 'What do I do next?',
         taskMemory: taskMemory || undefined,
       }),
@@ -252,11 +254,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
   chatInput.addEventListener('input', () => autoResize(chatInput));
 
-  // Fetch tab context once
+  // Fetch tab context + page content once
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     pageUrl = tab?.url || '';
     pageTitle = tab?.title || '';
+    if (tab?.id) {
+      const [{ result }] = await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: () => document.body?.innerText?.slice(0, 4000) || '',
+      });
+      pageContent = result || '';
+    }
   } catch { /* non-critical */ }
 
   // Fetch task memory silently
