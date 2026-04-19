@@ -396,7 +396,8 @@ export default function CopilotPanel({
             className="action-btn action-btn-secondary !text-base !py-3"
             onClick={() => {
               if (responses.length > 0) {
-                /* just re-show the last response */
+                const last = responses[0];
+                addResponse({ ...last, timestamp: new Date() });
               }
             }}
             disabled={isLoading || responses.length === 0}
@@ -456,9 +457,9 @@ export default function CopilotPanel({
           </div>
         )}
 
-        {responses.map((response, index) => (
+        {responses.map((response) => (
           <div
-            key={index}
+            key={response.timestamp.getTime()}
             className={`response-card ${getClassificationStyles(response.classification)}`}
           >
             <div className="flex items-center gap-2 mb-2">
