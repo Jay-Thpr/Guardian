@@ -15,8 +15,6 @@ type CopilotRespondDependencies = {
   };
 };
 
-const DEMO_USER_ID = "demo-user-001";
-
 export async function POST(request: Request) {
   return handleCopilotRespondRequest(request);
 }

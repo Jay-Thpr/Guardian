@@ -33,6 +33,20 @@ function normalizeFrameUrl(rawUrl: string) {
   }
 }
 
+function isGoogleUrl(rawUrl: string) {
+  const normalized = normalizeFrameUrl(rawUrl);
+  if (!normalized) {
+    return false;
+  }
+
+  try {
+    const parsed = new URL(normalized);
+    return /(^|\.)google\./i.test(parsed.hostname);
+  } catch {
+    return false;
+  }
+}
+
 export default function EmbeddedBrowserFrame({
   currentUrl,
   pageTitle,
@@ -87,6 +101,13 @@ export default function EmbeddedBrowserFrame({
               sizes="(max-width: 768px) 100vw, 100vw"
             />
           </div>
+        ) : isGoogleUrl(currentUrl) ? (
+          <iframe
+            className="embedded-browser-frame"
+            src="/search"
+            title="SafeStep search"
+            referrerPolicy="no-referrer-when-downgrade"
+          />
         ) : frameUrl ? (
           <iframe
             key={frameUrl}

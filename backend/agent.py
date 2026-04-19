@@ -35,9 +35,11 @@ os.environ.setdefault("BROWSER_USE_CONFIG_DIR", str(Path("/tmp") / "browseruse")
 try:
     from browser_use import Agent, BrowserProfile, BrowserSession
     from browser_use.llm.google.chat import ChatGoogle
+    from browser_use.llm.exceptions import ModelProviderError, ModelRateLimitError
     _IMPORT_ERROR: Exception | None = None
 except ImportError as exc:  # pragma: no cover - optional browser agent dependency
     Agent = BrowserProfile = BrowserSession = ChatGoogle = None  # type: ignore[assignment]
+    ModelProviderError = ModelRateLimitError = None  # type: ignore[assignment]
     _IMPORT_ERROR = exc
 
 # Submit guard keywords
@@ -50,24 +52,48 @@ SUBMIT_KEYWORDS = {
     "place order",
 }
 
-BROWSER_MODEL = "gemini-3.1-flash-lite"
+PRIMARY_BROWSER_MODEL = "gemini-3.1-flash-lite-preview"
+FALLBACK_BROWSER_MODEL = "gemini-2.0-flash"
+MODEL_ALIASES = {
+    "gemini-3.1-flash-lite": PRIMARY_BROWSER_MODEL,
+}
 logger = logging.getLogger(__name__)
 
 
-def _build_llm() -> ChatGoogle:
+def _resolve_model_name(raw_name: str | None, default_name: str) -> str:
+    model_name = (raw_name or "").strip() or default_name
+    return MODEL_ALIASES.get(model_name, model_name)
+
+
+def _build_llm() -> tuple[ChatGoogle, ChatGoogle]:
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY is not set.")
 
-    model_name = os.environ.get("SAFESTEP_BROWSER_MODEL", BROWSER_MODEL)
-    logger.info("browser-use model=%s", model_name)
+    model_name = _resolve_model_name(os.environ.get("SAFESTEP_BROWSER_MODEL"), PRIMARY_BROWSER_MODEL)
+    fallback_model_name = _resolve_model_name(
+        os.environ.get("SAFESTEP_BROWSER_FALLBACK_MODEL"),
+        FALLBACK_BROWSER_MODEL,
+    )
+    if fallback_model_name == model_name:
+        fallback_model_name = FALLBACK_BROWSER_MODEL
 
-    return ChatGoogle(
+    logger.info("browser-use model=%s fallback=%s", model_name, fallback_model_name)
+
+    primary_llm = ChatGoogle(
         model=model_name,
         api_key=api_key,
         temperature=0.0,
         max_output_tokens=16000,
     )
+    fallback_llm = ChatGoogle(
+        model=fallback_model_name,
+        api_key=api_key,
+        temperature=0.0,
+        max_output_tokens=16000,
+    )
+
+    return primary_llm, fallback_llm
 
 
 def _browser_headless(force_headless: bool | None = None) -> bool:
@@ -88,7 +114,7 @@ async def extract_from_page(task: str, headless: bool | None = None) -> str:
             "browser-use is not installed in this environment, so the browser agent cannot run."
         ) from _IMPORT_ERROR
 
-    llm = _build_llm()
+    llm, fallback_llm = _build_llm()
 
     profile = BrowserProfile(headless=_browser_headless(headless))
     session = BrowserSession(browser_profile=profile)
@@ -102,7 +128,10 @@ async def extract_from_page(task: str, headless: bool | None = None) -> str:
         await session.navigate_to("https://www.medicare.gov")
 
         page = await session.must_get_current_page()
-        extracted = await page.extract_content(task, ExtractionResponse, llm=llm)
+        try:
+            extracted = await page.extract_content(task, ExtractionResponse, llm=llm)
+        except (ModelProviderError, ModelRateLimitError):
+            extracted = await page.extract_content(task, ExtractionResponse, llm=fallback_llm)
 
         parts: list[str] = []
         if extracted.phone_number:
@@ -134,7 +163,7 @@ async def run_agent(
             "browser-use is not installed in this environment, so the browser agent cannot run."
         ) from _IMPORT_ERROR
 
-    llm = _build_llm()
+    llm, fallback_llm = _build_llm()
 
     profile = BrowserProfile(headless=_browser_headless(headless))
     session = BrowserSession(browser_profile=profile)
@@ -226,6 +255,7 @@ async def run_agent(
             task=task,
             llm=llm,
             browser_session=session,
+            fallback_llm=fallback_llm,
             max_failures=3,
         )
 

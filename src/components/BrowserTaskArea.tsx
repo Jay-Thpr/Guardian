@@ -86,6 +86,27 @@ function derivePageTitleFromUrl(url: string) {
   }
 }
 
+function extractInitialNavigationUrl(goal: string) {
+  const patterns = [
+    /(https?:\/\/[^\s]+)/i,
+    /(www\.[^\s]+)/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = goal.match(pattern);
+    if (!match) {
+      continue;
+    }
+
+    const normalized = normalizeBrowserUrl(match[1]);
+    if (normalized) {
+      return normalized;
+    }
+  }
+
+  return "";
+}
+
 const BrowserTaskArea = forwardRef<BrowserTaskAreaHandle, BrowserTaskAreaProps>(
   function BrowserTaskArea(
     {
@@ -120,6 +141,11 @@ const BrowserTaskArea = forwardRef<BrowserTaskAreaHandle, BrowserTaskAreaProps>(
           return;
         }
 
+        const startingUrl =
+          extractInitialNavigationUrl(trimmedGoal) ||
+          currentUrl ||
+          "https://www.google.com";
+
         eventSourceRef.current?.close();
         eventSourceRef.current = null;
 
@@ -127,11 +153,12 @@ const BrowserTaskArea = forwardRef<BrowserTaskAreaHandle, BrowserTaskAreaProps>(
         setScreenshot(null);
         setStatus("running");
         stepCountRef.current = 0;
-        onPageTitleChange(trimmedGoal);
+        onUrlChange(startingUrl);
+        onPageTitleChange(derivePageTitleFromUrl(startingUrl));
 
         const startResult = await runBrowserTask(trimmedGoal, {
-          url: currentUrl || undefined,
-          title: currentPageTitle || undefined,
+          url: startingUrl,
+          title: currentPageTitle || derivePageTitleFromUrl(startingUrl),
         });
 
         if (!startResult.success) {

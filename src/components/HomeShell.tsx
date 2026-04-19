@@ -6,8 +6,8 @@ import CopilotPanel from "@/components/CopilotPanel";
 
 export default function HomeShell() {
   const browserAreaRef = useRef<BrowserTaskAreaHandle | null>(null);
-  const [currentUrl, setCurrentUrl] = useState("");
-  const [currentPageTitle, setCurrentPageTitle] = useState("");
+  const [currentUrl, setCurrentUrl] = useState("https://www.google.com");
+  const [currentPageTitle, setCurrentPageTitle] = useState("Google");
   const [panelOpen, setPanelOpen] = useState(false);
   const [closing, setClosing] = useState(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);

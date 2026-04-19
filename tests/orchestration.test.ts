@@ -88,6 +88,52 @@ test("chat route returns planner-aware guidance and persists memory updates", as
   assert.match(data.reminder?.message || "", /Medicare enrollment follow-up/i);
 });
 
+test("chat route answers casual questions directly without orchestration", async () => {
+  let orchestrated = false;
+  const request = new Request("http://localhost/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message: "How are you today?",
+      url: "https://example.com",
+      pageTitle: "Home",
+    }),
+  });
+
+  const response = await handleChatRequest(request, {
+    userContext: {
+      profile: {
+        userId: "demo-user-001",
+        name: "Maria Garcia",
+        supportNeeds: [],
+        preferences: [],
+        conditions: [],
+      },
+      entries: [],
+    },
+    generateGeneralChatReply: async () => ({
+      message: "I’m doing well, thanks for asking.",
+    }),
+    orchestrateCopilot: async () => {
+      orchestrated = true;
+      throw new Error("orchestrator should not run for casual chat");
+    },
+    persistPreferenceSignals: async () => [],
+  });
+
+  assert.equal(response.status, 200);
+  const data = (await response.json()) as {
+    mode?: string;
+    message?: string;
+    saved_preferences?: string[];
+  };
+
+  assert.equal(orchestrated, false);
+  assert.equal(data.mode, "chat");
+  assert.equal(data.message, "I’m doing well, thanks for asking.");
+  assert.deepEqual(data.saved_preferences, []);
+});
+
 test("copilot/respond persists memory updates when the model returns one", async () => {
   const request = new Request("http://localhost/api/copilot/respond", {
     method: "POST",

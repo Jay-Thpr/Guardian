@@ -1,13 +1,15 @@
 import { cookies } from "next/headers";
 import { buildAppointmentContextFromRow } from "../../../lib/appointment-utils";
 import { buildAppointmentReminder } from "../../../lib/appointment-reminders";
+import { generateGeneralChatReply } from "../../../lib/general-chat";
+import { routeIntent, shouldUseBrowserUse } from "../../../lib/intent-router";
 import { createServerSupabaseClient } from "../../../lib/supabase-server";
 import { loadUserContextFromCookies } from "../../../lib/user-context";
 import { persistPreferenceSignals } from "../../../lib/preference-store";
 import { getTaskFlow } from "../../../lib/memory-store";
 import { persistCopilotMemoryUpdate } from "../../../lib/copilot-memory";
 import { normalizeTaskMemoryInput } from "../../../lib/task-memory-input";
-import type { CopilotRequest, CopilotResponse, TaskMemoryState, UserContextEntry, UserProfileContext, AppointmentContext } from "../../../lib/response-schema";
+import type { CopilotRequest, CopilotResponse, UserContextEntry, UserProfileContext, AppointmentContext } from "../../../lib/response-schema";
 
 type ChatRequest = {
   message?: string;
@@ -29,6 +31,7 @@ type ChatRequest = {
 };
 
 type ChatDependencies = {
+  generateGeneralChatReply?: typeof generateGeneralChatReply;
   orchestrateCopilot?: (input: CopilotRequest) => Promise<CopilotResponse>;
   persistPreferenceSignals?: typeof persistPreferenceSignals;
   persistCopilotMemoryUpdate?: typeof persistCopilotMemoryUpdate;
@@ -69,6 +72,17 @@ export async function handleChatRequest(
       return Response.json({ error: "message is required" }, { status: 400 });
     }
     const normalizedTaskMemory = normalizeTaskMemoryInput(body.taskMemory);
+    const routingInput: CopilotRequest = {
+      mode: "auto",
+      query: message,
+      url: body.url,
+      pageTitle: body.pageTitle,
+      visibleText: body.visibleText,
+      pageSummary: body.pageSummary,
+    };
+    const intent = routeIntent(routingInput);
+    const shouldOrchestrate =
+      intent === "scam_check" || shouldUseBrowserUse(routingInput, intent);
 
     const cookieStore = deps.userContext ? null : await cookies();
     const userContext =
@@ -94,6 +108,36 @@ export async function handleChatRequest(
 
     if (!appointment && data) {
       appointment = buildAppointmentContextFromRow(data as Record<string, unknown>, { source: "supabase" });
+    }
+
+    if (!shouldOrchestrate) {
+      const generateReply =
+        deps.generateGeneralChatReply ?? generateGeneralChatReply;
+      const reply = await generateReply({
+        query: message,
+        url: body.url,
+        pageTitle: body.pageTitle,
+        visibleText: body.visibleText,
+        pageSummary: body.pageSummary,
+        taskMemory: normalizedTaskMemory,
+        appointment,
+        userProfile: userContext.profile,
+        userContextEntries: userContext.entries,
+      });
+
+      const savedPreferences = await (deps.persistPreferenceSignals ?? persistPreferenceSignals)(
+        userId,
+        message,
+        userContext.profile,
+      );
+
+      return Response.json({
+        mode: "chat",
+        message: reply.message,
+        summary: reply.message,
+        appointment,
+        saved_preferences: savedPreferences,
+      });
     }
 
     const orchestrateCopilot =

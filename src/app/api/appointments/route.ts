@@ -178,17 +178,23 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { title, startTime, durationMinutes, notes } = body;
+    const { title, startTime, durationMinutes, notes, location } = body;
+    const parsedStartTime = new Date(startTime);
 
     if (!title || !startTime) {
       return Response.json({ error: "title and startTime are required" }, { status: 400 });
     }
 
+    if (Number.isNaN(parsedStartTime.getTime())) {
+      return Response.json({ error: "startTime must be a valid date" }, { status: 400 });
+    }
+
     const eventId = await createAppointment(
       title,
-      new Date(startTime),
+      parsedStartTime,
       durationMinutes ?? 60,
-      notes
+      notes,
+      location
     );
 
     return Response.json({ success: true, eventId });

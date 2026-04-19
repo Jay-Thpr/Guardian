@@ -43,7 +43,7 @@ export type OnboardingProfileUpsert = {
   onboardingCompletedAt: string | null;
 };
 
-const DEFAULT_MODEL = process.env.SAFESTEP_GEMINI_MODEL || "gemini-3.1-flash-lite";
+const DEFAULT_MODEL = process.env.SAFESTEP_GEMINI_MODEL || "gemini-3.1-flash-lite-preview";
 
 function buildGenAI() {
   const apiKey = process.env.GEMINI_API_KEY;

@@ -24,12 +24,14 @@ import {
 import { buildCopilotPrompt } from "@/lib/prompts";
 import { loadUserContextFromCookies, summarizeUserContext } from "@/lib/user-context";
 
+type OrchestrationMode = Exclude<CopilotMode, "chat">;
+
 type CopilotContext = {
   userProfile: UserProfileContext;
   userContextEntries: UserContextEntry[];
   taskMemory: TaskMemoryState;
   appointment: AppointmentContext;
-  intent: CopilotMode;
+  intent: OrchestrationMode;
   suspiciousSignals: string[];
   riskLevel: CopilotResponse["riskLevel"];
 };

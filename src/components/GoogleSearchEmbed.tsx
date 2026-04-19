@@ -5,7 +5,7 @@ import { FormEvent, useState } from "react";
 
 function buildGoogleSearchUrl(query: string) {
   const trimmed = query.trim() || "SafeStep";
-  return `https://www.google.com/search?igu=1&hl=en&q=${encodeURIComponent(trimmed)}`;
+  return `/search?q=${encodeURIComponent(trimmed)}`;
 }
 
 interface GoogleSearchEmbedProps {
@@ -63,7 +63,7 @@ export default function GoogleSearchEmbed({
           key={searchUrl}
           className="google-search-frame"
           src={searchUrl}
-          title="Embedded Google Search"
+          title="SafeStep search"
           referrerPolicy="no-referrer-when-downgrade"
         />
       </div>
