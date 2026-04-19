@@ -2,17 +2,7 @@ import { cookies } from "next/headers";
 import type { CalendarSnapshot } from "@/lib/gcal";
 import { loadCalendarSnapshot } from "@/lib/gcal";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
-
-// Fallback demo appointment data when Google Calendar isn't connected
-const DEMO_APPOINTMENT = {
-  title: "Cardiology Follow-up",
-  start_time: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // tomorrow
-  description:
-    "Follow-up appointment with Dr. Martinez at UCSD Medical Center. Bring medication list and insurance card.",
-  portal_link: "https://myhealth.ucsd.edu",
-};
-
-const DEMO_USER_ID = "demo-user-001";
+import { DEMO_APPOINTMENT, DEMO_USER_ID } from "@/lib/mock-context";
 
 export async function GET() {
   try {
@@ -38,11 +28,11 @@ export async function GET() {
         return Response.json({
           message: snapshot.message,
           appointment: {
-            title: appt.summary,
-            start_time: appt.start,
-            end_time: appt.end || null,
-            description: appt.description || "",
-            location: appt.location || "",
+            summary: appt.summary,
+            whenLabel: appt.whenLabel,
+            timeLabel: appt.timeLabel,
+            location: appt.location || null,
+            description: appt.description || null,
             source: "google-calendar",
           },
           upcoming_appointments: snapshot.upcomingAppointments,
@@ -63,6 +53,14 @@ export async function GET() {
     }
 
     const supabase = createServerSupabaseClient();
+    if (!supabase) {
+      return Response.json({
+        message: `Your next appointment is ${DEMO_APPOINTMENT.whenLabel || "tomorrow"} at ${DEMO_APPOINTMENT.timeLabel || "10:30 AM"}: ${DEMO_APPOINTMENT.summary}. ${DEMO_APPOINTMENT.description || ""}`,
+        appointment: DEMO_APPOINTMENT,
+        connected: false,
+        source: "demo",
+      });
+    }
 
     // Try to fetch from Supabase first
     const { data, error } = await supabase
@@ -99,21 +97,22 @@ export async function GET() {
 
       return Response.json({
         message: `Your next appointment is ${when} at ${time}: ${data.title}. ${data.description || ""}`,
-        appointment: data,
+        appointment: {
+          summary: data.title,
+          whenLabel: when,
+          timeLabel: time,
+          location: data.location || null,
+          description: data.description || null,
+          source: "supabase",
+        },
         connected: false,
         source: "supabase",
       });
     }
 
     // Fallback to demo data
-    const apptDate = new Date(DEMO_APPOINTMENT.start_time);
-    const time = apptDate.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-    });
-
     return Response.json({
-      message: `Your next appointment is tomorrow at ${time}: ${DEMO_APPOINTMENT.title}. ${DEMO_APPOINTMENT.description}`,
+      message: `Your next appointment is ${DEMO_APPOINTMENT.whenLabel || "tomorrow"} at ${DEMO_APPOINTMENT.timeLabel || "10:30 AM"}: ${DEMO_APPOINTMENT.summary}. ${DEMO_APPOINTMENT.description || ""}`,
       appointment: DEMO_APPOINTMENT,
       connected: false,
       source: "demo",

@@ -54,7 +54,7 @@ def _build_llm() -> ChatGoogle:
         raise RuntimeError("GEMINI_API_KEY is not set.")
 
     return ChatGoogle(
-        model="gemini-2.5-flash",
+        model=os.environ.get("SAFESTEP_BROWSER_MODEL", "gemini-2.5-flash-lite"),
         api_key=api_key,
         temperature=0.0,
         max_output_tokens=16000,
