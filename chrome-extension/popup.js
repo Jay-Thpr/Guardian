@@ -1,4 +1,5 @@
 const API_BASE = 'http://localhost:3000';
+const ACTIVE_TAB_KEY = 'safestep-active-tab';
 
 // ─── Context (fetched once on open) ──────────────────────────────────────────
 
@@ -8,6 +9,7 @@ let pageContent = '';
 let appointment = null;
 let taskMemory = null;
 let isSending = false;
+let alertBannerDismissed = false;
 
 // ─── Voice output (TTS) ──────────────────────────────────────────────────────
 
@@ -74,11 +76,21 @@ function toggleRecording() {
 // ─── Tone detection ───────────────────────────────────────────────────────────
 
 function deriveTone(value) {
+  if (isGovernmentUrl(pageUrl)) return 'safe';
   const v = (value || '').toLowerCase();
   if (v === 'risky') return 'danger';
   if (v === 'uncertain' || v === 'not-sure') return 'warning';
   if (v === 'safe') return 'safe';
   return 'neutral';
+}
+
+function isGovernmentUrl(url) {
+  if (!url) return false;
+  try {
+    return new URL(url).hostname.toLowerCase().endsWith('.gov');
+  } catch {
+    return false;
+  }
 }
 
 function getAlertDismissKey(url) {
@@ -91,6 +103,14 @@ async function isAlertDismissed(url) {
   return Boolean(cached[getAlertDismissKey(url)]);
 }
 
+async function dismissAlertBanner() {
+  if (!pageUrl) return;
+  alertBannerDismissed = true;
+  await chrome.storage.session.set({ [getAlertDismissKey(pageUrl)]: true }).catch(() => {});
+  const banner = document.getElementById('alert-banner');
+  banner?.classList.add('hidden');
+}
+
 // ─── State helpers ────────────────────────────────────────────────────────────
 
 function showState(id) {
@@ -100,13 +120,41 @@ function showState(id) {
   document.getElementById(id).classList.remove('hidden');
 }
 
+function setThinking(active, text) {
+  const state = document.getElementById('thinking-state');
+  const label = document.getElementById('thinking-text');
+  if (!state) return;
+
+  if (label && typeof text === 'string' && text.trim()) {
+    label.textContent = text;
+  } else if (label) {
+    label.textContent = 'SafeStep is thinking…';
+  }
+
+  state.classList.toggle('hidden', !active);
+}
+
 // ─── Tab switching ────────────────────────────────────────────────────────────
 
-function switchTab(tab) {
+function applyTab(tab) {
   document.getElementById('panel-appointments').classList.toggle('hidden', tab !== 'appointments');
   document.getElementById('panel-chat').classList.toggle('hidden', tab !== 'chat');
   document.getElementById('tab-appointments').classList.toggle('active', tab === 'appointments');
   document.getElementById('tab-chat').classList.toggle('active', tab === 'chat');
+}
+
+async function switchTab(tab, persist = true) {
+  applyTab(tab);
+
+  if (persist) {
+    await chrome.storage.session.set({ [ACTIVE_TAB_KEY]: tab }).catch(() => {});
+  }
+}
+
+async function loadActiveTab() {
+  const cached = await chrome.storage.session.get(ACTIVE_TAB_KEY).catch(() => ({}));
+  const storedTab = cached[ACTIVE_TAB_KEY] === 'chat' ? 'chat' : 'appointments';
+  applyTab(storedTab);
 }
 
 // ─── Appointments ─────────────────────────────────────────────────────────────
@@ -193,6 +241,7 @@ async function handleSafe() {
   if (isSending) return;
   isSending = true;
   setActionButtonsDisabled(true);
+  setThinking(true, 'Checking whether this page is safe…');
   appendMessage('Is this safe?', 'user');
 
   try {
@@ -210,6 +259,7 @@ async function handleSafe() {
   } finally {
     isSending = false;
     setActionButtonsDisabled(false);
+    setThinking(false);
   }
 }
 
@@ -217,6 +267,7 @@ async function handleNext() {
   if (isSending) return;
   isSending = true;
   setActionButtonsDisabled(true);
+  setThinking(true, 'Looking at the next step…');
   appendMessage('What do I do next?', 'user');
 
   try {
@@ -245,6 +296,7 @@ async function handleNext() {
   } finally {
     isSending = false;
     setActionButtonsDisabled(false);
+    setThinking(false);
   }
 }
 
@@ -285,11 +337,15 @@ async function triggerPageModal({ tone, explanation, bullets }) {
 }
 
 function showAlertBanner(tone, bullets) {
+  if (alertBannerDismissed) return;
   const banner = document.getElementById('alert-banner');
   const title = document.getElementById('alert-title');
   const signalsList = document.getElementById('alert-signals');
 
+  if (!banner || !title || !signalsList) return;
+
   banner.className = `alert-banner tone-${tone}`;
+  banner.classList.remove('hidden');
   title.textContent = tone === 'danger'
     ? '🚨 This page looks dangerous — do not enter personal details'
     : '⚠️ This page has warning signs — proceed carefully';
@@ -304,6 +360,7 @@ function showAlertBanner(tone, bullets) {
   }
 
   document.getElementById('alert-details-btn').onclick = () => switchTab('chat');
+  document.getElementById('alert-dismiss-btn').onclick = () => { void dismissAlertBanner(); };
 
   const spokenTitle = tone === 'danger'
     ? 'Warning! This page looks dangerous. Do not enter any personal details.'
@@ -323,13 +380,14 @@ async function autoAnalyzePage() {
     appendMessage(explanation, 'assistant', tone, bullets);
     if (tone === 'danger' || tone === 'warning') showAlertBanner(tone, bullets);
     if (tone === 'danger' && !dismissed) {
-      switchTab('chat');
+      await switchTab('chat');
       triggerPageModal({ tone, explanation, bullets });
     }
     return;
   }
 
   try {
+    setThinking(true, 'Checking the current page…');
     const res = await fetch(`${API_BASE}/api/scam-check`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -344,12 +402,14 @@ async function autoAnalyzePage() {
     appendMessage(explanation, 'assistant', tone, bullets);
     if (tone === 'danger' || tone === 'warning') showAlertBanner(tone, bullets);
     if (tone === 'danger' && !dismissed) {
-      switchTab('chat');
+      await switchTab('chat');
       triggerPageModal({ tone, explanation, bullets });
     }
     chrome.storage.session.set({ [cacheKey]: { explanation, tone, bullets } }).catch(() => {});
   } catch {
     /* silent */
+  } finally {
+    setThinking(false);
   }
 }
 
@@ -361,6 +421,7 @@ async function sendMessage() {
 
   isSending = true;
   setActionButtonsDisabled(true);
+  setThinking(true, 'SafeStep is thinking about your message…');
   input.value = '';
   input.style.height = 'auto';
   appendMessage(text, 'user');
@@ -391,6 +452,7 @@ async function sendMessage() {
   } finally {
     isSending = false;
     setActionButtonsDisabled(false);
+    setThinking(false);
     input.focus();
   }
 }
@@ -405,9 +467,11 @@ function autoResize(el) {
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', async () => {
+  await loadActiveTab();
+
   // Tab switching
-  document.getElementById('tab-appointments').addEventListener('click', () => switchTab('appointments'));
-  document.getElementById('tab-chat').addEventListener('click', () => switchTab('chat'));
+  document.getElementById('tab-appointments').addEventListener('click', () => { void switchTab('appointments'); });
+  document.getElementById('tab-chat').addEventListener('click', () => { void switchTab('chat'); });
 
   // Action buttons
   document.getElementById('btn-safe').addEventListener('click', handleSafe);
@@ -436,6 +500,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     pageUrl = tab?.url || '';
     pageTitle = tab?.title || '';
+    alertBannerDismissed = await isAlertDismissed(pageUrl);
     if (tab?.id) {
       const [{ result }] = await chrome.scripting.executeScript({
         target: { tabId: tab.id },
@@ -467,4 +532,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     .then(data => renderAppointment(data))
     .catch(() => showState('state-error'))
     .finally(() => clearTimeout(timer));
+});
+
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== 'session') return;
+  const nextTab = changes[ACTIVE_TAB_KEY]?.newValue;
+  if (nextTab === 'chat' || nextTab === 'appointments') {
+    applyTab(nextTab);
+  }
 });

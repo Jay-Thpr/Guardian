@@ -38,14 +38,6 @@ export default function HomeShell() {
     }, 200);
   };
 
-  const togglePanel = () => {
-    if (panelOpen && !closing) {
-      closePanel();
-    } else {
-      openPanel();
-    }
-  };
-
   const runPharmacyTrace = () => {
     browserAreaRef.current?.runTask(pharmacyTask);
   };
@@ -63,6 +55,7 @@ export default function HomeShell() {
           currentPageTitle={currentPageTitle}
           onUrlChange={setCurrentUrl}
           onPageTitleChange={setCurrentPageTitle}
+          onOpenAssistant={openPanel}
         />
       </div>
 
@@ -80,11 +73,11 @@ export default function HomeShell() {
 
       <button
         className="fab"
-        onClick={togglePanel}
-        aria-label={panelOpen ? "Close SafeStep" : "Open SafeStep"}
-        title={panelOpen ? "Close SafeStep" : "Open SafeStep"}
+        onClick={openPanel}
+        aria-label="Open SafeStep"
+        title="Open SafeStep"
       >
-        {panelOpen && !closing ? "✕" : "🦮"}
+        🦮
       </button>
     </div>
   );
